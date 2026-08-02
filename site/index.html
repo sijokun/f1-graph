@@ -4725,7 +4725,7 @@ async function buildImages() {
 const graph = new Graph(document.getElementById('graph'), {
   backgroundColor: [0, 0, 0, 0],
   spaceSize: 4096,
-  scalePointsOnZoom: true,
+  scalePointsOnZoom: false, // manual capped scaling below — photos must not blow up when zooming in
   renderHoveredPointRing: true,
   hoveredPointRingColor: css('--accent'),
   hoveredPointCursor: 'pointer',
@@ -4779,15 +4779,22 @@ function focusSet() {
   return keep;
 }
 
+// screen-size response to zoom: shrink when zoomed out, grow only gently when zoomed in
+let zScale = 1;
+const zoomFactor = z => z <= 1 ? z : Math.min(1 + (Math.sqrt(z) - 1) * 0.5, 1.5);
+function currentSizes() {
+  const szs = new Float32Array(N);
+  for (let i = 0; i < N; i++) szs[i] = nodeR[i] > 0 ? sizeOf(nodeR[i]) * zScale : 0;
+  return szs;
+}
+
 function applyState() {
   const keep = focusSet();
   const imgIdx = new Float32Array(N);
-  const szs = new Float32Array(N);
   for (let i = 0; i < N; i++) {
-    const visible = nodeR[i] > 0;
-    szs[i] = visible ? sizeOf(nodeR[i]) : 0;
     imgIdx[i] = (keep && !keep.has(i)) ? i * 2 + 1 : i * 2;
   }
+  const szs = currentSizes();
   graph.setPointSizes(szs);
   graph.setPointImageSizes(szs);
   graph.setPointImageIndices(imgIdx);
@@ -4962,7 +4969,7 @@ function layoutLabels() {
     }
     div.style.display = '';
     div.style.left = sx + 'px';
-    div.style.top = (sy + (sizeOf(nodeR[i]) / 2) * Math.min(z, 2.2) + 3) + 'px';
+    div.style.top = (sy + (sizeOf(nodeR[i]) * zScale) / 2 + 3) + 'px';
   }
 }
 
@@ -5060,7 +5067,19 @@ if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEven
   graph.trackPointPositionsByIndices(nodes.map(n => n.i));
   graph.render();
   graph.fitView(0, 0.08);
-  (function loop() { layoutLabels(); requestAnimationFrame(loop); })();
+  (function loop() {
+    const z = graph.getZoomLevel ? graph.getZoomLevel() : 1;
+    const f = zoomFactor(z);
+    if (Math.abs(f - zScale) > 0.02) {
+      zScale = f;
+      const s = currentSizes();
+      graph.setPointSizes(s);
+      graph.setPointImageSizes(s);
+      graph.render(undefined, 0);
+    }
+    layoutLabels();
+    requestAnimationFrame(loop);
+  })();
 })();
 </script>
 
