@@ -1,0 +1,849 @@
+<meta charset="utf-8" />
+<title>F1 Teammate Graph 1950–2026</title>
+<style>
+  :root {
+    --ground: #F5F4F1;
+    --panel: #FFFFFF;
+    --ink: #17191C;
+    --muted: #70757D;
+    --edge: rgba(23, 25, 28, 0.30);
+    --accent: #E10600;
+    --accent-soft: rgba(225, 6, 0, 0.12);
+    --border: rgba(23, 25, 28, 0.12);
+    --shadow: 0 8px 28px rgba(23, 25, 28, 0.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #101216;
+      --panel: #191C22;
+      --ink: #ECEDEF;
+      --muted: #9BA0A8;
+      --edge: rgba(236, 237, 239, 0.30);
+      --accent: #FF2E27;
+      --accent-soft: rgba(255, 46, 39, 0.16);
+      --border: rgba(236, 237, 239, 0.14);
+      --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #F5F4F1;
+    --panel: #FFFFFF;
+    --ink: #17191C;
+    --muted: #70757D;
+    --edge: rgba(23, 25, 28, 0.30);
+    --accent: #E10600;
+    --accent-soft: rgba(225, 6, 0, 0.12);
+    --border: rgba(23, 25, 28, 0.12);
+    --shadow: 0 8px 28px rgba(23, 25, 28, 0.14);
+  }
+  :root[data-theme="dark"] {
+    --ground: #101216;
+    --panel: #191C22;
+    --ink: #ECEDEF;
+    --muted: #9BA0A8;
+    --edge: rgba(236, 237, 239, 0.30);
+    --accent: #FF2E27;
+    --accent-soft: rgba(255, 46, 39, 0.16);
+    --border: rgba(236, 237, 239, 0.14);
+    --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    overflow: hidden;
+  }
+
+  #app { position: relative; width: 100vw; height: 100vh; height: 100dvh; }
+  html { -webkit-text-size-adjust: 100%; }
+  #graph { position: absolute; inset: 0; touch-action: none; }
+  #graph canvas { display: block; }
+
+  #labels { position: absolute; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }
+  .lbl {
+    position: absolute;
+    transform: translate(-50%, 0);
+    font-size: 11px;
+    font-weight: 550;
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ground) 82%, transparent);
+    padding: 1px 5px;
+    border-radius: 4px;
+    white-space: nowrap;
+    will-change: left, top;
+  }
+  .lbl.em { color: var(--accent); font-weight: 700; font-size: 12.5px; }
+
+  header {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 14px 20px;
+    pointer-events: none;
+    z-index: 3;
+  }
+  header > * { pointer-events: auto; }
+  .title-block { display: flex; flex-direction: column; gap: 2px; }
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  .credit { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .credit a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--border); }
+  .credit a:hover, .credit a:focus-visible { color: var(--accent); border-bottom-color: var(--accent); }
+  .stats {
+    display: flex; gap: 16px; margin-left: auto;
+    font-size: 12px; color: var(--muted);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .stats b { color: var(--ink); font-weight: 600; }
+
+  #search {
+    width: 210px;
+    padding: 7px 12px;
+    font: inherit; font-size: 13px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    outline: none;
+  }
+  #search::placeholder { color: var(--muted); }
+  #search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  #tooltip {
+    position: absolute;
+    max-width: 270px;
+    padding: 9px 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    font-size: 12.5px;
+    line-height: 1.45;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 5;
+  }
+  #tooltip.on { opacity: 1; }
+  #tooltip .tt-name { font-weight: 650; font-size: 13px; }
+  #tooltip .tt-sub { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #tooltip .tt-accent { color: var(--accent); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+  #card {
+    position: absolute;
+    top: 66px; right: 20px;
+    width: 296px;
+    max-height: calc(100vh - 190px);
+    display: none;
+    flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    z-index: 4;
+    overflow: hidden;
+  }
+  #card.on { display: flex; }
+  .card-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px 10px; }
+  .card-photo {
+    width: 44px; height: 44px; border-radius: 50%;
+    object-fit: cover; flex: none;
+    border: 2px solid var(--border);
+  }
+  .card-titles { flex: 1; min-width: 0; }
+  .card-titles h2 { margin: 0; font-size: 16px; font-weight: 700; }
+  .card-sub { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  #card-close {
+    align-self: flex-start;
+    border: 0; background: none; color: var(--muted);
+    font-size: 16px; line-height: 1; cursor: pointer; padding: 2px 4px;
+    border-radius: 4px;
+  }
+  #card-close:hover, #card-close:focus-visible { color: var(--ink); outline: 2px solid var(--accent-soft); }
+  .card-label {
+    padding: 8px 16px 4px;
+    font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  .mates { margin: 0; padding: 2px 8px 10px; list-style: none; overflow-y: auto; }
+  .mates li {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .mates li:hover { background: var(--accent-soft); }
+  .m-photo {
+    width: 28px; height: 28px; border-radius: 50%;
+    object-fit: cover; flex: none;
+    background: var(--border);
+  }
+  .m-text { flex: 1; min-width: 0; }
+  .m-name { display: block; }
+  .m-when { display: block; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .m-n {
+    color: var(--ink); font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 30px; text-align: right;
+  }
+  .m-n small { color: var(--muted); font-weight: 400; }
+  #card-credit {
+    padding: 7px 16px 9px;
+    font-size: 10px;
+    line-height: 1.5;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  #card-credit:empty { display: none; }
+  #card-credit { max-height: 74px; overflow-y: auto; flex: none; }
+  #card-credit a { color: var(--muted); text-decoration: underline; }
+  #card-credit a:hover { color: var(--accent); }
+
+  #legend {
+    position: absolute;
+    left: 20px; bottom: 18px;
+    display: flex; align-items: center; gap: 14px;
+    padding: 9px 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 11.5px;
+    color: var(--muted);
+    z-index: 3;
+    font-variant-numeric: tabular-nums;
+  }
+  .leg-item { display: flex; align-items: center; gap: 7px; }
+  .leg-line { border-radius: 2px; background: var(--edge); }
+  .leg-line.w1 { width: 26px; height: 1.5px; }
+  .leg-line.w2 { width: 26px; height: 5px; }
+  .leg-line.w3 { width: 26px; height: 9px; }
+  .hint { color: var(--muted); }
+
+  /* ---- season range slider ---- */
+  #range {
+    position: absolute;
+    right: 20px; bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    z-index: 3;
+    user-select: none;
+    touch-action: none;
+  }
+  .r-year {
+    font-size: 13px; font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    min-width: 38px; text-align: center;
+  }
+  #r-track {
+    position: relative;
+    width: min(440px, 44vw);
+    height: 26px;
+    cursor: pointer;
+  }
+  #r-rail {
+    position: absolute;
+    top: 11px; left: 0; right: 0;
+    height: 4px;
+    border-radius: 4px;
+    background: var(--border);
+  }
+  #r-fill {
+    position: absolute;
+    top: 11px;
+    height: 4px;
+    border-radius: 4px;
+    background: var(--accent);
+  }
+  .r-handle {
+    position: absolute;
+    top: 4px;
+    width: 18px; height: 18px;
+    margin-left: -9px;
+    border-radius: 50%;
+    background: var(--panel);
+    border: 2.5px solid var(--accent);
+    cursor: grab;
+    padding: 0;
+  }
+  .r-handle:active { cursor: grabbing; }
+  .r-handle:focus-visible { outline: 3px solid var(--accent-soft); }
+
+  @media (max-width: 1100px) {
+    #legend { display: none; }
+  }
+  @media (max-width: 720px) {
+    header { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+    .stats { display: none; }
+    #search { flex: 1; min-width: 0; width: auto; }
+    h1 { font-size: 17px; }
+
+    /* bottom sheet instead of side card */
+    #card {
+      top: auto;
+      left: 12px; right: 12px; bottom: 86px;
+      width: auto;
+      max-height: 46vh;
+      max-height: 46dvh;
+    }
+
+    /* slider spans the bottom, track flexes, big touch targets */
+    #range {
+      left: 12px; right: 12px; bottom: 12px;
+      gap: 10px;
+      padding: 12px 14px;
+    }
+    #r-track { flex: 1; min-width: 0; width: auto; height: 32px; }
+    #r-rail, #r-fill { top: 14px; }
+    .r-handle {
+      top: 4px;
+      width: 24px; height: 24px;
+      margin-left: -12px;
+    }
+    .r-year { min-width: 34px; font-size: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #tooltip { transition: none; }
+  }
+</style>
+
+<div id="app">
+  <div id="graph" aria-label="Network graph of Formula 1 teammate pairings since 1950"></div>
+  <div id="labels"></div>
+  <header>
+    <div class="title-block">
+      <span class="eyebrow">Formula 1 · <span id="era">1950–2026</span></span>
+      <h1>Who raced alongside whom</h1>
+      <span class="credit">by <a href="https://slnk.icu" target="_blank" rel="noopener">Yan Khachko</a>
+        · data <a href="https://github.com/jolpica/jolpica-f1" target="_blank" rel="noopener">Jolpica-Ergast F1 API</a>
+        · photos <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a></span>
+    </div>
+    <input id="search" type="search" placeholder="Find a driver…" aria-label="Find a driver" />
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div id="tooltip" role="status"></div>
+
+  <aside id="card" aria-live="polite">
+    <div class="card-head">
+      <img class="card-photo" id="card-photo" alt="" />
+      <div class="card-titles">
+        <h2 id="card-name"></h2>
+        <div class="card-sub" id="card-sub"></div>
+      </div>
+      <button id="card-close" aria-label="Close">✕</button>
+    </div>
+    <div class="card-label">Teammates · when · races</div>
+    <ul class="mates" id="card-mates"></ul>
+    <div id="card-credit"></div>
+  </aside>
+
+  <div id="legend">
+    <span class="leg-item"><span class="leg-line w1"></span> 1</span>
+    <span class="leg-item"><span class="leg-line w2"></span> 50</span>
+    <span class="leg-item"><span class="leg-line w3"></span> 100 races together</span>
+    <span class="hint">scroll to zoom · drag · click a driver</span>
+  </div>
+
+  <div id="range" aria-label="Filter seasons">
+    <span class="r-year" id="r-lo">1950</span>
+    <div id="r-track">
+      <div id="r-rail"></div>
+      <div id="r-fill"></div>
+      <button class="r-handle" id="r-h0" aria-label="First season"></button>
+      <button class="r-handle" id="r-h1" aria-label="Last season"></button>
+    </div>
+    <span class="r-year" id="r-hi">2026</span>
+  </div>
+</div>
+
+<script>__COSMOS__</script>
+<script>
+const DATA = __DATA__;
+const PHOTOS = __PHOTOS__;
+const CREDITS = __CREDITS__;
+
+const { Graph } = cosmos;
+const tooltip = document.getElementById('tooltip');
+const card = document.getElementById('card');
+const searchEl = document.getElementById('search');
+const labelsEl = document.getElementById('labels');
+
+const N = DATA.nodes.length;
+const tot = ys => ys.reduce((s, p) => s + p[1], 0);
+const nodes = DATA.nodes.map((n, i) => ({ ...n, i, races: tot(n.ys), adj: [] }));
+DATA.links.forEach((l, li) => {
+  l.w = tot(l.ys);
+  nodes[l.s].adj.push({ li, other: nodes[l.t], link: l });
+  nodes[l.t].adj.push({ li, other: nodes[l.s], link: l });
+});
+const MAXW = Math.max(...DATA.links.map(l => l.w));
+const YEAR_MIN = 1950;
+const YEAR_MAX = Math.max(...Object.keys(DATA.racesPerSeason).map(Number));
+const sizeOf = r => 2 * (6 + Math.sqrt(r) * 0.95);
+const lw = w => 1 + (w / MAXW) * 9;
+
+// ---- season-range helpers ----
+let yLo = YEAR_MIN, yHi = YEAR_MAX;
+const sumRange = ys => {
+  let s = 0;
+  for (const [y, c] of ys) if (y >= yLo && y <= yHi) s += c;
+  return s;
+};
+const yearsInRange = ys => ys.filter(p => p[0] >= yLo && p[0] <= yHi).map(p => p[0]);
+function rangesStr(years) {
+  if (!years.length) return '';
+  const out = [];
+  let s = years[0], p = years[0];
+  for (const y of years.slice(1)) {
+    if (y === p + 1) { p = y; continue; }
+    out.push(s === p ? `${s}` : `${s}–${p}`);
+    s = p = y;
+  }
+  out.push(s === p ? `${s}` : `${s}–${p}`);
+  return out.join(', ');
+}
+
+// per-filter derived state
+const nodeR = new Float64Array(N);        // races within range
+const linkR = new Float64Array(DATA.links.length);
+let TOP_IDLE = [];
+function recomputeFilter() {
+  nodes.forEach((n, i) => { nodeR[i] = sumRange(n.ys); });
+  DATA.links.forEach((l, j) => { linkR[j] = sumRange(l.ys); });
+  TOP_IDLE = nodes.filter(n => nodeR[n.i] > 0)
+    .sort((a, b) => nodeR[b.i] - nodeR[a.i]).slice(0, 14).map(n => n.i);
+  let races = 0;
+  for (const [y, c] of Object.entries(DATA.racesPerSeason))
+    if (+y >= yLo && +y <= yHi) races += c;
+  const nVis = nodes.reduce((s, n) => s + (nodeR[n.i] > 0 ? 1 : 0), 0);
+  const lVis = DATA.links.reduce((s, l, j) => s + (linkR[j] > 0 ? 1 : 0), 0);
+  const lr = DATA.lastRace;
+  document.getElementById('stats').innerHTML =
+    `<span><b>${nVis}</b> drivers</span><span><b>${lVis}</b> pairings</span><span><b>${races}</b> races</span>` +
+    (lr && lr.date ? `<span>last race <b>${lr.name}</b> · ${lr.date}</span>` : '');
+  document.getElementById('era').textContent = yLo === yHi ? `${yLo}` : `${yLo}–${yHi}`;
+}
+
+// ---- theme tokens ----
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+let C = {};
+function refreshColors() {
+  C = { ground: css('--ground'), ink: css('--ink'), edge: css('--edge'), accent: css('--accent') };
+}
+refreshColors();
+
+// ---- circular photo ImageData (normal + dimmed variants) ----
+const IMG = 72;
+function circleImageData(source, alpha, fallbackName) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = IMG;
+  const cx = cv.getContext('2d');
+  cx.globalAlpha = alpha;
+  cx.save();
+  cx.beginPath();
+  cx.arc(IMG / 2, IMG / 2, IMG / 2 - 1, 0, Math.PI * 2);
+  cx.clip();
+  if (source) {
+    cx.drawImage(source, 0, 0, IMG, IMG);
+  } else {
+    cx.fillStyle = '#3A3E46';
+    cx.fillRect(0, 0, IMG, IMG);
+    cx.fillStyle = '#ECEDEF';
+    cx.font = '600 26px system-ui, sans-serif';
+    cx.textAlign = 'center';
+    cx.textBaseline = 'middle';
+    const initials = fallbackName.split(' ').map(p => p[0]).slice(0, 2).join('');
+    cx.fillText(initials, IMG / 2, IMG / 2 + 1);
+  }
+  cx.restore();
+  cx.beginPath();
+  cx.arc(IMG / 2, IMG / 2, IMG / 2 - 1.5, 0, Math.PI * 2);
+  cx.lineWidth = 3;
+  cx.strokeStyle = 'rgba(127,130,136,0.85)';
+  cx.stroke();
+  return cx.getImageData(0, 0, IMG, IMG);
+}
+
+async function buildImages() {
+  const imgs = await Promise.all(nodes.map(n => {
+    const uri = PHOTOS[n.name];
+    if (!uri) return null;
+    return new Promise(res => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => res(null);
+      im.src = uri;
+    });
+  }));
+  const data = [];
+  nodes.forEach((n, i) => {
+    data.push(circleImageData(imgs[i], 1, n.name));     // 2i   — normal
+    data.push(circleImageData(imgs[i], 0.14, n.name));  // 2i+1 — dimmed
+  });
+  return data;
+}
+
+// ---- graph ----
+const graph = new Graph(document.getElementById('graph'), {
+  backgroundColor: [0, 0, 0, 0],
+  spaceSize: 4096,
+  scalePointsOnZoom: true,
+  renderHoveredPointRing: true,
+  hoveredPointRingColor: css('--accent'),
+  hoveredPointCursor: 'pointer',
+  fitViewOnInit: false,
+  enableSimulation: false, // layout is precomputed at build time — nothing moves
+  linkVisibilityMinTransparency: 0.35,
+  onPointClick: i => { if (nodeR[i] > 0) openCard(nodes[i]); },
+  onBackgroundClick: () => { closeCard(); },
+  onPointMouseOver: (i, pos, ev) => {
+    if (nodeR[i] <= 0) return;
+    hoverNode = nodes[i];
+    if (ev && ev.clientX != null) { mx = ev.clientX; my = ev.clientY; }
+    showTooltip(nodeTip(hoverNode));
+  },
+  onPointMouseOut: () => { hoverNode = null; if (!hoverLink) hideTooltip(); },
+  onLinkMouseOver: li => {
+    if (linkR[li] <= 0) return;
+    hoverLink = DATA.links[li];
+    hoverLink.li = li;
+    if (!hoverNode) showTooltip(linkTip(hoverLink));
+  },
+  onLinkMouseOut: () => { hoverLink = null; if (hoverNode) showTooltip(nodeTip(hoverNode)); else hideTooltip(); },
+});
+
+const positions = new Float32Array(DATA.pos);
+const linksFlat = new Float32Array(DATA.links.length * 2);
+DATA.links.forEach((l, i) => { linksFlat[i * 2] = l.s; linksFlat[i * 2 + 1] = l.t; });
+
+let selected = null, hoverNode = null, hoverLink = null, query = '';
+let mx = 0, my = 0;
+
+function parseRGBA(str) {
+  const m = str.match(/rgba?\(([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)(?:[,/ ]+([\d.]+))?\)/);
+  if (m) return [+m[1] / 255, +m[2] / 255, +m[3] / 255, m[4] === undefined ? 1 : +m[4]];
+  const h = str.replace('#', '');
+  return [parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255, 1];
+}
+
+function focusSet() {
+  if (!selected && !query) return null;
+  const keep = new Set();
+  if (selected) {
+    keep.add(selected.i);
+    for (const m of selected.adj) if (linkR[m.li] > 0) keep.add(m.other.i);
+  }
+  if (query) {
+    for (const n of nodes) {
+      if (nodeR[n.i] > 0 && n.name.toLowerCase().includes(query)) keep.add(n.i);
+    }
+  }
+  return keep;
+}
+
+function applyState() {
+  const keep = focusSet();
+  const imgIdx = new Float32Array(N);
+  const szs = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const visible = nodeR[i] > 0;
+    szs[i] = visible ? sizeOf(nodeR[i]) : 0;
+    imgIdx[i] = (keep && !keep.has(i)) ? i * 2 + 1 : i * 2;
+  }
+  graph.setPointSizes(szs);
+  graph.setPointImageSizes(szs);
+  graph.setPointImageIndices(imgIdx);
+
+  const edgeC = parseRGBA(C.edge);
+  const accC = parseRGBA(C.accent);
+  const linkColors = new Float32Array(DATA.links.length * 4);
+  const widths = new Float32Array(DATA.links.length);
+  DATA.links.forEach((l, j) => {
+    if (linkR[j] <= 0) { widths[j] = 0; return; } // color alpha stays 0
+    widths[j] = lw(linkR[j]);
+    const active = selected && (l.s === selected.i || l.t === selected.i);
+    const c = active ? accC : edgeC;
+    const a = keep && !active ? edgeC[3] * 0.14 : c[3];
+    linkColors.set([c[0], c[1], c[2], a], j * 4);
+  });
+  graph.setLinkWidths(widths);
+  graph.setLinkColors(linkColors);
+  graph.render(undefined, 0);
+  updateLabelSet();
+}
+
+// ---- tooltips ----
+function showTooltip(html) {
+  tooltip.innerHTML = html;
+  tooltip.classList.add('on');
+  positionTooltip();
+}
+function positionTooltip() {
+  const pad = 14;
+  const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+  let x = mx + pad, y = my + pad;
+  if (x + tw > innerWidth - 8) x = mx - tw - pad;
+  if (y + th > innerHeight - 8) y = my - th - pad;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+function hideTooltip() { tooltip.classList.remove('on'); }
+addEventListener('pointermove', e => {
+  mx = e.clientX; my = e.clientY;
+  if (tooltip.classList.contains('on')) positionTooltip();
+});
+
+function nodeTip(n) {
+  const yrs = yearsInRange(n.ys);
+  const mates = n.adj.filter(m => linkR[m.li] > 0).length;
+  return `<div class="tt-name">${n.name}</div>
+    <div class="tt-sub">${sumRange(n.ys)} race starts · ${rangesStr(yrs)}</div>
+    <div class="tt-sub">${mates} teammate${mates === 1 ? '' : 's'} · ${n.teams.join(', ')}</div>`;
+}
+function linkTip(l) {
+  return `<div class="tt-name">${nodes[l.s].name} &amp; ${nodes[l.t].name}</div>
+    <div><span class="tt-accent">${sumRange(l.ys)}</span> <span class="tt-sub">races as teammates · ${rangesStr(yearsInRange(l.ys))}</span></div>
+    <div class="tt-sub">${l.teams.join(', ')}</div>`;
+}
+
+// ---- card ----
+function openCard(n) {
+  selected = n;
+  const photo = document.getElementById('card-photo');
+  photo.src = PHOTOS[n.name] || '';
+  photo.style.display = PHOTOS[n.name] ? '' : 'none';
+  document.getElementById('card-name').textContent = n.name;
+  document.getElementById('card-sub').textContent =
+    `${sumRange(n.ys)} race starts · ${rangesStr(yearsInRange(n.ys))} · ${n.teams.join(', ')}`;
+  const mates = n.adj
+    .map(m => ({ ...m, w: sumRange(m.link.ys) }))
+    .filter(m => m.w > 0)
+    .sort((a, b) => b.w - a.w);
+  document.getElementById('card-mates').innerHTML = mates.map(m => `
+    <li data-i="${m.other.i}">
+      ${PHOTOS[m.other.name] ? `<img class="m-photo" src="${PHOTOS[m.other.name]}" alt="" />`
+                             : '<span class="m-photo"></span>'}
+      <span class="m-text">
+        <span class="m-name">${m.other.name}</span>
+        <span class="m-when">${rangesStr(yearsInRange(m.link.ys))} · ${m.link.teams.join(', ')}</span>
+      </span>
+      <span class="m-n">${m.w}<br /><small>race${m.w === 1 ? '' : 's'}</small></span>
+    </li>`).join('');
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const creditFor = who => {
+    const c = CREDITS[who];
+    if (!c || !PHOTOS[who]) return '';
+    const by = [c.author, c.license].filter(Boolean).map(esc).join(' · ');
+    return c.url ? `<a href="${c.url}" target="_blank" rel="noopener">${esc(who)}</a>: ${by}`
+                 : `${esc(who)}: ${by}`;
+  };
+  const credits = [creditFor(n.name), ...mates.map(m => creditFor(m.other.name))].filter(Boolean);
+  document.getElementById('card-credit').innerHTML =
+    credits.length ? 'Photos — ' + credits.join(' · ') : '';
+  card.classList.add('on');
+  graph.setConfigPartial({ focusedPointIndex: n.i });
+  applyState();
+}
+function closeCard() {
+  if (!selected) return;
+  selected = null;
+  card.classList.remove('on');
+  graph.setConfigPartial({ focusedPointIndex: undefined });
+  applyState();
+}
+document.getElementById('card-close').addEventListener('click', closeCard);
+document.getElementById('card-mates').addEventListener('click', e => {
+  const li = e.target.closest('li[data-i]');
+  if (li) openCard(nodes[+li.dataset.i]);
+});
+
+// ---- search ----
+searchEl.addEventListener('input', () => {
+  query = searchEl.value.trim().toLowerCase();
+  applyState();
+});
+searchEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && query) {
+    const n = nodes.find(n => nodeR[n.i] > 0 && n.name.toLowerCase().includes(query));
+    if (n) {
+      openCard(n);
+      graph.fitViewByPointIndices([n.i, ...n.adj.filter(m => linkR[m.li] > 0).map(m => m.other.i)], 400, 0.2);
+    }
+  }
+  if (e.key === 'Escape') { searchEl.value = ''; query = ''; searchEl.blur(); applyState(); }
+});
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.activeElement !== searchEl) closeCard();
+});
+
+// ---- labels ----
+let labelIdx = [];
+const labelPool = new Map();
+function updateLabelSet() {
+  const keep = focusSet();
+  let want;
+  if (keep) {
+    want = [...keep];
+    if (want.length > 42) {
+      const sel = selected ? [selected.i] : [];
+      want = sel.concat(want.filter(i => !sel.includes(i))
+        .sort((a, b) => nodeR[b] - nodeR[a]).slice(0, 41));
+    }
+  } else {
+    want = TOP_IDLE;
+  }
+  labelIdx = want;
+  const wantSet = new Set(want);
+  for (const [i, div] of labelPool) {
+    if (!wantSet.has(i)) { div.remove(); labelPool.delete(i); }
+  }
+  for (const i of want) {
+    if (!labelPool.has(i)) {
+      const div = document.createElement('div');
+      div.className = 'lbl';
+      div.textContent = nodes[i].name;
+      labelsEl.appendChild(div);
+      labelPool.set(i, div);
+    }
+    labelPool.get(i).classList.toggle('em', !!selected && i === selected.i);
+  }
+}
+
+function layoutLabels() {
+  if (!graph.isReady || !labelIdx.length) return;
+  const map = graph.getTrackedPointPositionsMap();
+  const z = graph.getZoomLevel ? graph.getZoomLevel() : 1;
+  for (const i of labelIdx) {
+    const div = labelPool.get(i);
+    const p = map.get(i);
+    if (!div || !p) continue;
+    const [sx, sy] = graph.spaceToScreenPosition([p[0], p[1]]);
+    if (sx < -80 || sx > innerWidth + 80 || sy < -40 || sy > innerHeight + 40) {
+      div.style.display = 'none';
+      continue;
+    }
+    div.style.display = '';
+    div.style.left = sx + 'px';
+    div.style.top = (sy + (sizeOf(nodeR[i]) / 2) * Math.min(z, 2.2) + 3) + 'px';
+  }
+}
+
+// ---- season range slider ----
+const track = document.getElementById('r-track');
+const fill = document.getElementById('r-fill');
+const h0 = document.getElementById('r-h0');
+const h1 = document.getElementById('r-h1');
+const loEl = document.getElementById('r-lo');
+const hiEl = document.getElementById('r-hi');
+
+function sliderRender() {
+  const span = YEAR_MAX - YEAR_MIN;
+  const p0 = (yLo - YEAR_MIN) / span * 100;
+  const p1 = (yHi - YEAR_MIN) / span * 100;
+  h0.style.left = p0 + '%';
+  h1.style.left = p1 + '%';
+  fill.style.left = p0 + '%';
+  fill.style.width = (p1 - p0) + '%';
+  loEl.textContent = yLo;
+  hiEl.textContent = yHi;
+}
+let filterQueued = false;
+function queueFilter() {
+  if (filterQueued) return;
+  filterQueued = true;
+  requestAnimationFrame(() => {
+    filterQueued = false;
+    recomputeFilter();
+    if (selected && nodeR[selected.i] <= 0) { selected = null; card.classList.remove('on'); }
+    else if (selected) openCard(selected); // refresh card numbers for new range
+    applyState();
+  });
+}
+function yearAt(clientX) {
+  const r = track.getBoundingClientRect();
+  const f = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+  return Math.round(YEAR_MIN + f * (YEAR_MAX - YEAR_MIN));
+}
+let dragH = null;
+function startDrag(h, e) { dragH = h; h.setPointerCapture(e.pointerId); }
+h0.addEventListener('pointerdown', e => startDrag(h0, e));
+h1.addEventListener('pointerdown', e => startDrag(h1, e));
+addEventListener('pointermove', e => {
+  if (!dragH) return;
+  const y = yearAt(e.clientX);
+  if (dragH === h0) yLo = Math.min(y, yHi);
+  else yHi = Math.max(y, yLo);
+  sliderRender();
+  queueFilter();
+});
+addEventListener('pointerup', () => { dragH = null; });
+track.addEventListener('pointerdown', e => {
+  if (e.target === h0 || e.target === h1) return;
+  const y = yearAt(e.clientX);
+  if (Math.abs(y - yLo) <= Math.abs(y - yHi)) { yLo = Math.min(y, yHi); startDrag(h0, e); }
+  else { yHi = Math.max(y, yLo); startDrag(h1, e); }
+  sliderRender();
+  queueFilter();
+});
+function nudge(h, dir) {
+  if (h === h0) yLo = Math.min(Math.max(YEAR_MIN, yLo + dir), yHi);
+  else yHi = Math.max(Math.min(YEAR_MAX, yHi + dir), yLo);
+  sliderRender();
+  queueFilter();
+}
+h0.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') nudge(h0, -1);
+  if (e.key === 'ArrowRight') nudge(h0, 1);
+});
+h1.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') nudge(h1, -1);
+  if (e.key === 'ArrowRight') nudge(h1, 1);
+});
+
+// ---- theme reactions ----
+function onThemeChange() {
+  refreshColors();
+  graph.setConfigPartial({ hoveredPointRingColor: css('--accent') });
+  applyState();
+}
+new MutationObserver(onThemeChange).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onThemeChange);
+
+// ---- boot ----
+(async () => {
+  const [images] = await Promise.all([buildImages(), graph.ready]);
+  graph.setPointPositions(positions);
+  graph.setLinks(linksFlat);
+  graph.setImageData(images);
+  graph.setPointColors(new Float32Array(N * 4)); // transparent shapes under photos
+  recomputeFilter();
+  sliderRender();
+  applyState();
+  graph.trackPointPositionsByIndices(nodes.map(n => n.i));
+  graph.render();
+  graph.fitView(0, 0.08);
+  (function loop() { layoutLabels(); requestAnimationFrame(loop); })();
+})();
+</script>
