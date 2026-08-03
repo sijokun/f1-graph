@@ -20,6 +20,10 @@ to the other in as few hops as possible — each hop moves to someone the driver
 you're standing on is connected to (a teammate, a podium partner…), picked from
 the list in the card. The target stays labelled on the canvas.
 
+Stuck? **Hint** gives up two clues about the target, one at a time: the seasons
+they were active, then the teams they drove for. How many you leaned on is
+reported at the end.
+
 The shortest possible route is solved up front with a breadth-first search over
 the graph *as currently filtered*, so the season range is locked for the length
 of a run. When you arrive — or hit **Show answer** — your route and the shortest

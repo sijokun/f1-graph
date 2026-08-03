@@ -213,6 +213,13 @@
     cursor: pointer;
   }
   .mini:hover { color: var(--accent); border-color: var(--accent); }
+  #hud-hints { display: flex; flex-direction: column; gap: 2px; }
+  #hud-hints:empty { display: none; }
+  .hint-line { font-size: 12px; color: var(--ink); }
+  .hint-line .hud-k { margin-right: 6px; }
+  .mini:disabled { opacity: 0.45; cursor: default; }
+  .mini:disabled:hover { color: var(--muted); border-color: var(--border); }
+
   #hud-msg {
     font-size: 11.5px;
     color: var(--muted);
@@ -520,9 +527,11 @@
       <span class="hud-arrow">→</span>
       <span><span class="hud-k">To</span> <b id="hud-target"></b></span>
       <span class="hud-steps"><b id="hud-steps">0</b> steps</span>
+      <button id="hud-hint" class="mini">Hint</button>
       <button id="hud-answer" class="mini">Show answer</button>
       <button id="hud-quit" class="mini" aria-label="Quit game">✕</button>
     </div>
+    <div id="hud-hints"></div>
     <div id="hud-msg" role="status"></div>
   </div>
 
@@ -5147,6 +5156,12 @@ const hudEl = document.getElementById('hud');
 const resultEl = document.getElementById('result');
 let play = null;
 
+// clues about the target, handed out one at a time
+const HINTS = [
+  { label: 'Active', of: n => rangesStr(yearsInRange(n.ys)) },
+  { label: 'Drove for', of: n => n.teams.join(', ') },
+];
+
 function bfs(src) {
   const dist = new Int32Array(N).fill(-1);
   const prev = new Int32Array(N).fill(-1);
@@ -5184,7 +5199,8 @@ function startGame() {
   const best = [];
   for (let i = chosen.target; i >= 0; i = chosen.prev[i]) best.push(i);
   best.reverse();
-  play = { start: chosen.src, target: chosen.target, path: [chosen.src], best, done: false, gaveUp: false };
+  play = { start: chosen.src, target: chosen.target, path: [chosen.src], best,
+           hints: 0, done: false, gaveUp: false };
 
   resultEl.hidden = true;
   hudEl.hidden = false;
@@ -5202,6 +5218,7 @@ function endGame() {
   resultEl.hidden = true;
   document.body.classList.remove('playing');
   document.getElementById('range').classList.remove('locked');
+  document.getElementById('hud-hints').innerHTML = '';
   hudMsg('');
   updateLabelSet();
 }
@@ -5211,7 +5228,22 @@ function renderHud() {
   document.getElementById('hud-start').textContent = nodes[play.start].name;
   document.getElementById('hud-target').textContent = nodes[play.target].name;
   document.getElementById('hud-steps').textContent = play.path.length - 1;
+
+  const target = nodes[play.target];
+  document.getElementById('hud-hints').innerHTML = HINTS.slice(0, play.hints)
+    .map(h => `<div class="hint-line"><span class="hud-k">${h.label}</span>${h.of(target) || '—'}</div>`)
+    .join('');
+  const btn = document.getElementById('hud-hint');
+  const left = HINTS.length - play.hints;
+  btn.textContent = play.hints ? `Hint (${left} left)` : 'Hint';
+  btn.disabled = left === 0 || play.done;
   updateLabelSet();
+}
+
+function takeHint() {
+  if (!play || play.done || play.hints >= HINTS.length) return;
+  play.hints++;
+  renderHud();
 }
 
 let hudMsgTimer = null;
@@ -5240,9 +5272,10 @@ function finishGame(gaveUp) {
   const ideal = play.best.length - 1;
   document.getElementById('res-title').textContent =
     gaveUp ? 'Here was the short way' : mine === ideal ? 'Perfect run' : 'You made it';
-  document.getElementById('res-sub').innerHTML = gaveUp
+  const hints = play.hints ? ` · <b>${play.hints}</b> hint${play.hints === 1 ? '' : 's'} used` : '';
+  document.getElementById('res-sub').innerHTML = (gaveUp
     ? `You took <b>${mine}</b> step${mine === 1 ? '' : 's'} before giving up · shortest possible <b>${ideal}</b>`
-    : `Your route: <b>${mine}</b> step${mine === 1 ? '' : 's'} · shortest possible <b>${ideal}</b>`;
+    : `Your route: <b>${mine}</b> step${mine === 1 ? '' : 's'} · shortest possible <b>${ideal}</b>`) + hints;
   document.getElementById('res-verdict').textContent = gaveUp ? ''
     : mine === ideal ? 'Nobody could have done it in fewer.'
     : `${mine - ideal} step${mine - ideal === 1 ? '' : 's'} more than the shortest route.`;
@@ -5253,6 +5286,7 @@ function finishGame(gaveUp) {
 }
 
 document.getElementById('play-btn').addEventListener('click', startGame);
+document.getElementById('hud-hint').addEventListener('click', takeHint);
 document.getElementById('hud-quit').addEventListener('click', endGame);
 document.getElementById('hud-answer').addEventListener('click', () => {
   if (play && !play.done) finishGame(true);
