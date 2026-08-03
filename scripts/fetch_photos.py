@@ -17,7 +17,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
 PHOTOS_DIR = ROOT / "site" / "photos"
 MANIFEST = ROOT / "data" / "photo_manifest.json"
-GRAPH = ROOT / "data" / "graph_data_all.json"
+GRAPH_DIR = ROOT / "data" / "graphs"
 NO_PHOTO = ROOT / "data" / "photo_missing.json"  # negative cache: don't retry daily
 
 API = "https://en.wikipedia.org/w/api.php"
@@ -100,7 +100,12 @@ def to_jpeg(url):
 def main():
     manifest = json.load(open(MANIFEST, encoding="utf-8")) if MANIFEST.exists() else {}
     skip = set(json.load(open(NO_PHOTO, encoding="utf-8"))) if NO_PHOTO.exists() else set()
-    names = [n["name"] for n in json.load(open(GRAPH, encoding="utf-8"))["nodes"]]
+    names = set()  # every driver appearing in any graph
+    for path in sorted(GRAPH_DIR.glob("*.json")):
+        if path.name == "index.json":
+            continue
+        names.update(n["name"] for n in json.load(open(path, encoding="utf-8"))["nodes"])
+    names = sorted(names)
     todo = [n for n in names if n not in manifest and n not in skip]
     if not todo:
         print("no new drivers")

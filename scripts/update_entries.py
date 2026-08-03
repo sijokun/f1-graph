@@ -1,5 +1,10 @@
 """Incrementally update f1_entries_all.csv: re-fetch only the current season
-from the Jolpica-Ergast API and merge it in. Cheap enough to run daily."""
+from the Jolpica-Ergast API and merge it in. Cheap enough to run daily.
+
+    python scripts/update_entries.py              # current season only
+    python scripts/update_entries.py --all        # refetch 1950–now
+    python scripts/update_entries.py 1998 1999    # refetch specific seasons
+"""
 
 import csv
 import sys
@@ -11,10 +16,11 @@ import requests
 
 BASE = "https://api.jolpi.ca/ergast/f1"
 LIMIT = 100
+FIRST_SEASON = 1950
 ROOT = Path(__file__).resolve().parent.parent
 CSV = ROOT / "f1_entries_all.csv"
 FIELDS = ["season", "round", "race_name", "date", "session",
-          "team", "driver", "driver_number"]
+          "team", "driver", "driver_number", "position", "points"]
 
 session = requests.Session()
 session.headers["User-Agent"] = "f1-entry-list-downloader/1.0 (github action)"
@@ -47,6 +53,8 @@ def fetch_season(year):
                     "team": res["Constructor"]["name"],
                     "driver": f'{drv["givenName"]} {drv["familyName"]}',
                     "driver_number": res.get("number", ""),
+                    "position": res.get("position", ""),
+                    "points": res.get("points", ""),
                 })
         offset += LIMIT
         if offset >= total:
@@ -54,11 +62,20 @@ def fetch_season(year):
         time.sleep(0.4)
 
 
-def main():
+def seasons_to_fetch(argv):
     today = date.today()
-    years = [today.year]
+    if "--all" in argv:
+        return list(range(FIRST_SEASON, today.year + 1))
+    years = [int(a) for a in argv if a.isdigit()]
+    if years:
+        return sorted(years)
     if today.month <= 2:            # early season: last year's finale may be newer
-        years.insert(0, today.year - 1)
+        return [today.year - 1, today.year]
+    return [today.year]
+
+
+def main():
+    years = seasons_to_fetch(sys.argv[1:])
     fresh = []
     for y in years:
         fresh += fetch_season(y)
@@ -66,14 +83,15 @@ def main():
     # the new season may have zero completed races yet (January) — that's fine
     old = list(csv.DictReader(open(CSV, encoding="utf-8")))
     refetched = {str(y) for y in years}
-    kept = [r for r in old if r["season"] not in refetched]
+    kept = [{k: r.get(k, "") for k in FIELDS}
+            for r in old if r["season"] not in refetched]
     merged = kept + fresh
-    year = years[-1]
     with open(CSV, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)
         w.writeheader()
         w.writerows(merged)
-    print(f"{year}: {len(fresh)} entries (was {len(old) - len(kept)}); "
+    span = f"{years[0]}" if len(years) == 1 else f"{years[0]}–{years[-1]}"
+    print(f"{span}: {len(fresh)} entries (was {len(old) - len(kept)}); "
           f"total {len(merged)}")
     if len(fresh) < len(old) - len(kept):
         print("WARNING: fewer rows than before for current season",

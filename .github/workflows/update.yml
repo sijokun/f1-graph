@@ -32,7 +32,7 @@ jobs:
       - name: Fetch current season results
         run: python scripts/update_entries.py
 
-      - name: Rebuild graph data
+      - name: Rebuild graph data (one JSON per graph)
         run: python scripts/build_data.py
 
       - name: Fetch photos for new drivers
@@ -41,7 +41,7 @@ jobs:
       - name: Fetch credits for new photos
         run: python scripts/fetch_photo_credits.py
 
-      - name: Solve layout
+      - name: Solve layout for every graph
         run: node scripts/layout.mjs
 
       - name: Build site

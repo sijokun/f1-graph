@@ -1,9 +1,15 @@
-# F1 Teammate Graph
+# F1 Driver Graphs
 
-Interactive network of every Formula 1 teammate pairing since 1950, rendered
-with [cosmos](https://github.com/cosmograph-org/cosmos) (Cosmograph's GPU
-engine). Vertices are driver portraits, edge width is how many races a pair
-started together, and a season range slider filters any era.
+Interactive networks of Formula 1 drivers since 1950, rendered with
+[cosmos](https://github.com/cosmograph-org/cosmos) (Cosmograph's GPU engine).
+Vertices are driver portraits, edge width is how often a pair is connected,
+and a season range slider filters any era. Pick a graph from the switcher in
+the header:
+
+| Graph | An edge means |
+|---|---|
+| **Teammates** | the two drivers started a race for the same team |
+| **Shared podiums** | the two drivers finished the same race in the top three |
 
 By [Yan Khachko](https://slnk.icu).
 
@@ -11,13 +17,29 @@ By [Yan Khachko](https://slnk.icu).
 
 | Path | What it is |
 |---|---|
-| `f1_entries_all.csv` | one row per driver per race, 1950–present (Jolpica-Ergast API) |
-| `data/graph_data_all.json` | nodes/links with per-season counts + precomputed layout positions |
+| `f1_entries_all.csv` | one row per driver per race, 1950–present, with finishing position (Jolpica-Ergast API) |
+| `data/graphs/<id>.json` | one file per graph: `meta`, nodes/links with per-season counts, precomputed layout positions |
+| `data/graphs/index.json` | the list of graphs the site offers |
 | `data/photo_manifest.json` | driver → photo filename |
 | `data/photo_credits.json` | driver → photo author / license / Commons page |
-| `site/` | the deployable static site (`index.html` + `photos/`) |
+| `site/` | the deployable static site (`index.html` + `data/` + `photos/`) |
 | `scripts/` | the update & build pipeline |
 | `.github/workflows/update.yml` | daily/manual data refresh + GitHub Pages deploy |
+
+## Adding a graph
+
+Everything downstream of `build_data.py` is graph-agnostic, so a new graph is
+one builder function:
+
+1. In `scripts/build_data.py`, add a `*_META` dict (labels the site shows: the
+   picker label, title, units for nodes/edges, legend suffix) and a builder
+   that turns the CSV rows into `(counts, teams)` per driver and
+   `(pair_counts, pair_teams)` per pair — both keyed by season.
+2. Register the `(meta, builder)` pair in `GRAPHS`.
+3. Re-run `build_data.py` → `layout.mjs` → `build_site.py`.
+
+The site reads `data/graphs/index.json`, fetches each graph's JSON on demand
+and keeps the season range across switches. Deep links work: `#podiums`.
 
 ## Setting up GitHub Pages
 
@@ -31,11 +53,12 @@ By [Yan Khachko](https://slnk.icu).
 ```bash
 pip install requests pillow
 python scripts/update_entries.py      # refresh current season (a few API calls)
-python scripts/build_data.py          # CSV → graph data + last-race stamp
+                                      # --all refetches 1950–now (~260 calls)
+python scripts/build_data.py          # CSV → data/graphs/*.json + last-race stamp
 python scripts/fetch_photos.py        # Wikipedia portraits for new drivers only
 python scripts/fetch_photo_credits.py # author/license for new photos only
-node   scripts/layout.mjs             # offline force layout (no jiggle at runtime)
-python scripts/build_site.py          # assemble site/index.html
+node   scripts/layout.mjs             # offline force layout for every graph
+python scripts/build_site.py          # assemble site/index.html + site/data/
 python -m http.server -d site 8000    # preview at http://localhost:8000
 ```
 

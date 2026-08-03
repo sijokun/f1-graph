@@ -1,0 +1,14 @@
+[
+  {
+    "id": "teammates",
+    "label": "Teammates",
+    "title": "Who raced alongside whom",
+    "blurb": "Every Formula 1 teammate pairing since 1950."
+  },
+  {
+    "id": "podiums",
+    "label": "Shared podiums",
+    "title": "Who shared the podium",
+    "blurb": "Two drivers are linked when they finished a race in the top three together."
+  }
+]

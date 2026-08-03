@@ -1,9 +1,26 @@
 // Precompute the force layout offline so the page renders a settled graph.
 // Each connected component is solved on its own, then components are packed
 // around the largest one so disconnected subgraphs never overlap.
-import { readFileSync, writeFileSync } from 'node:fs';
+//
+//   node scripts/layout.mjs                 # every graph in data/graphs/
+//   node scripts/layout.mjs in.json out.json
+import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 
-const data = JSON.parse(readFileSync(process.argv[2] ?? new URL('../data/graph_data_all.json', import.meta.url).pathname, 'utf8'));
+const GRAPH_DIR = new URL('../data/graphs/', import.meta.url);
+
+if (process.argv[2]) {
+  solveFile(process.argv[2], process.argv[3] ?? process.argv[2]);
+} else {
+  for (const f of readdirSync(GRAPH_DIR).sort()) {
+    if (!f.endsWith('.json') || f === 'index.json') continue;
+    const p = new URL(f, GRAPH_DIR).pathname;
+    console.log(`--- ${f}`);
+    solveFile(p, p);
+  }
+}
+
+function solveFile(inPath, outPath) {
+const data = JSON.parse(readFileSync(inPath, 'utf8'));
 const N = data.nodes.length;
 const tot = ys => ys.reduce((s, [, c]) => s + c, 0);
 for (const l of data.links) l.w = tot(l.ys);
@@ -65,7 +82,9 @@ function solve(members) {
     }
     for (const l of links) {
       const a = li.get(l.s), b = li.get(l.t);
-      const rest = 60 + 110 / (0.4 + l.w / 15);
+      // rest length is relative to the heaviest edge, so a graph whose counts
+      // are small (podiums) spaces out like the teammate graph does
+      const rest = 60 + 110 / (0.4 + (l.w / maxW) * 6.9);
       let dx = lx[b] - lx[a], dy = ly[b] - ly[a];
       const d = Math.sqrt(dx * dx + dy * dy) || 1;
       const f = springK * (d - rest) * (0.5 + l.w / maxW);
@@ -125,6 +144,7 @@ for (let i = 0; i < N; i++) data.pos.push(+(2048 + x[i] - cx0).toFixed(1), +(204
 
 for (const l of data.links) delete l.w;
 for (const n of data.nodes) delete n.races;
-writeFileSync(process.argv[3] ?? new URL('../data/graph_data_all.json', import.meta.url).pathname, JSON.stringify(data));
-console.log(`components: ${components.map(c => c.length).join(', ')}`);
+writeFileSync(outPath, JSON.stringify(data));
+console.log(`components: ${components.slice(0, 8).map(c => c.length).join(', ')}${components.length > 8 ? `, … (${components.length} total)` : ''}`);
 console.log(`layout done: extent ${(maxX - minX).toFixed(0)}×${(maxY - minY).toFixed(0)}`);
+}

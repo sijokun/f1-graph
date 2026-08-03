@@ -90,6 +90,37 @@
   }
   header > * { pointer-events: auto; }
   .title-block { display: flex; flex-direction: column; gap: 2px; }
+  #blurb { font-size: 11.5px; color: var(--muted); max-width: 42ch; }
+
+  /* ---- graph picker ---- */
+  #switcher {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    align-self: center;
+  }
+  #switcher button {
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 550;
+    padding: 6px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #switcher button:hover { color: var(--ink); }
+  #switcher button[aria-selected="true"] {
+    background: var(--accent);
+    color: #fff;
+  }
+  #switcher button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #switcher.busy { opacity: 0.6; pointer-events: none; }
   .eyebrow {
     font-size: 11px;
     font-weight: 600;
@@ -293,11 +324,17 @@
   @media (max-width: 1100px) {
     #legend { display: none; }
   }
+  @media (max-width: 900px) {
+    #blurb { display: none; }
+  }
   @media (max-width: 720px) {
     header { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
     .stats { display: none; }
     #search { flex: 1; min-width: 0; width: auto; }
     h1 { font-size: 17px; }
+    .credit { display: none; }
+    #switcher { order: 3; width: 100%; justify-content: stretch; }
+    #switcher button { flex: 1; padding: 8px 10px; }
 
     /* bottom sheet instead of side card */
     #card {
@@ -329,16 +366,18 @@
 </style>
 
 <div id="app">
-  <div id="graph" aria-label="Network graph of Formula 1 teammate pairings since 1950"></div>
+  <div id="graph"></div>
   <div id="labels"></div>
   <header>
     <div class="title-block">
       <span class="eyebrow">Formula 1 · <span id="era">1950–2026</span></span>
-      <h1>Who raced alongside whom</h1>
+      <h1 id="title">Who raced alongside whom</h1>
+      <span id="blurb"></span>
       <span class="credit">by <a href="https://slnk.icu" target="_blank" rel="noopener">Yan Khachko</a>
         · data <a href="https://github.com/jolpica/jolpica-f1" target="_blank" rel="noopener">Jolpica-Ergast F1 API</a>
         · photos <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a></span>
     </div>
+    <div id="switcher" role="tablist" aria-label="Choose a graph"></div>
     <input id="search" type="search" placeholder="Find a driver…" aria-label="Find a driver" />
     <div class="stats" id="stats"></div>
   </header>
@@ -360,9 +399,9 @@
   </aside>
 
   <div id="legend">
-    <span class="leg-item"><span class="leg-line w1"></span> 1</span>
-    <span class="leg-item"><span class="leg-line w2"></span> 50</span>
-    <span class="leg-item"><span class="leg-line w3"></span> 100 races together</span>
+    <span class="leg-item"><span class="leg-line w1"></span> <span id="leg-1">1</span></span>
+    <span class="leg-item"><span class="leg-line w2"></span> <span id="leg-2">50</span></span>
+    <span class="leg-item"><span class="leg-line w3"></span> <span id="leg-3">100 together</span></span>
     <span class="hint">scroll to zoom · drag · click a driver</span>
   </div>
 
@@ -380,7 +419,7 @@
 
 <script>__COSMOS__</script>
 <script>
-const DATA = __DATA__;
+const INDEX = __INDEX__;
 const PHOTOS = __PHOTOS__;
 const CREDITS = __CREDITS__;
 
@@ -389,23 +428,25 @@ const tooltip = document.getElementById('tooltip');
 const card = document.getElementById('card');
 const searchEl = document.getElementById('search');
 const labelsEl = document.getElementById('labels');
+const graphHost = document.getElementById('graph');
+const switcherEl = document.getElementById('switcher');
 
-const N = DATA.nodes.length;
-const tot = ys => ys.reduce((s, p) => s + p[1], 0);
-const nodes = DATA.nodes.map((n, i) => ({ ...n, i, races: tot(n.ys), adj: [] }));
-DATA.links.forEach((l, li) => {
-  l.w = tot(l.ys);
-  nodes[l.s].adj.push({ li, other: nodes[l.t], link: l });
-  nodes[l.t].adj.push({ li, other: nodes[l.s], link: l });
-});
-const MAXW = Math.max(...DATA.links.map(l => l.w));
 const YEAR_MIN = 1950;
-const YEAR_MAX = Math.max(...Object.keys(DATA.racesPerSeason).map(Number));
+const tot = ys => ys.reduce((s, p) => s + p[1], 0);
 const sizeOf = r => 2 * (6 + Math.sqrt(r) * 0.95);
+const plural = (unit, n) => unit[n === 1 ? 0 : 1];
+
+// ---- per-graph state (swapped by loadGraph) ----
+let SPEC = null, META = null, DATA = null, nodes = [], N = 0, MAXW = 1;
+let YEAR_MAX = 2026;
+let nodeR = new Float64Array(0), linkR = new Float64Array(0), TOP_IDLE = [];
+let yLo = YEAR_MIN, yHi = YEAR_MAX, rangeTouched = false;
+let selected = null, hoverNode = null, hoverLink = null, query = '';
+let graph = null, graphEl = null, zScale = 1, mx = 0, my = 0;
+
 const lw = w => 1 + (w / MAXW) * 9;
 
 // ---- season-range helpers ----
-let yLo = YEAR_MIN, yHi = YEAR_MAX;
 const sumRange = ys => {
   let s = 0;
   for (const [y, c] of ys) if (y >= yLo && y <= yHi) s += c;
@@ -425,10 +466,6 @@ function rangesStr(years) {
   return out.join(', ');
 }
 
-// per-filter derived state
-const nodeR = new Float64Array(N);        // races within range
-const linkR = new Float64Array(DATA.links.length);
-let TOP_IDLE = [];
 function recomputeFilter() {
   nodes.forEach((n, i) => { nodeR[i] = sumRange(n.ys); });
   DATA.links.forEach((l, j) => { linkR[j] = sumRange(l.ys); });
@@ -441,7 +478,8 @@ function recomputeFilter() {
   const lVis = DATA.links.reduce((s, l, j) => s + (linkR[j] > 0 ? 1 : 0), 0);
   const lr = DATA.lastRace;
   document.getElementById('stats').innerHTML =
-    `<span><b>${nVis}</b> drivers</span><span><b>${lVis}</b> pairings</span><span><b>${races}</b> races</span>` +
+    `<span><b>${nVis}</b> ${META.statNodes}</span><span><b>${lVis}</b> ${META.statLinks}</span>` +
+    `<span><b>${races}</b> races</span>` +
     (lr && lr.date ? `<span>last race <b>${lr.name}</b> · ${lr.date}</span>` : '');
   document.getElementById('era').textContent = yLo === yHi ? `${yLo}` : `${yLo}–${yHi}`;
 }
@@ -486,17 +524,22 @@ function circleImageData(source, alpha, fallbackName) {
   return cx.getImageData(0, 0, IMG, IMG);
 }
 
-async function buildImages() {
-  const imgs = await Promise.all(nodes.map(n => {
-    const uri = PHOTOS[n.name];
-    if (!uri) return null;
-    return new Promise(res => {
+// decoded portraits are shared between graphs — only the ImageData is rebuilt
+const photoCache = new Map();
+function loadPhoto(name) {
+  if (!photoCache.has(name)) {
+    const uri = PHOTOS[name];
+    photoCache.set(name, uri ? new Promise(res => {
       const im = new Image();
       im.onload = () => res(im);
       im.onerror = () => res(null);
       im.src = uri;
-    });
-  }));
+    }) : Promise.resolve(null));
+  }
+  return photoCache.get(name);
+}
+async function buildImages() {
+  const imgs = await Promise.all(nodes.map(n => loadPhoto(n.name)));
   const data = [];
   nodes.forEach((n, i) => {
     data.push(circleImageData(imgs[i], 1, n.name));     // 2i   — normal
@@ -505,41 +548,40 @@ async function buildImages() {
   return data;
 }
 
-// ---- graph ----
-const graph = new Graph(document.getElementById('graph'), {
-  backgroundColor: [0, 0, 0, 0],
-  spaceSize: 4096,
-  scalePointsOnZoom: false, // manual capped scaling below — photos must not blow up when zooming in
-  renderHoveredPointRing: true,
-  hoveredPointRingColor: css('--accent'),
-  hoveredPointCursor: 'pointer',
-  fitViewOnInit: false,
-  enableSimulation: false, // layout is precomputed at build time — nothing moves
-  linkVisibilityMinTransparency: 0.35,
-  onPointClick: i => { if (nodeR[i] > 0) openCard(nodes[i]); },
-  onBackgroundClick: () => { closeCard(); },
-  onPointMouseOver: (i, pos, ev) => {
-    if (nodeR[i] <= 0) return;
-    hoverNode = nodes[i];
-    if (ev && ev.clientX != null) { mx = ev.clientX; my = ev.clientY; }
-    showTooltip(nodeTip(hoverNode));
-  },
-  onPointMouseOut: () => { hoverNode = null; if (!hoverLink) hideTooltip(); },
-  onLinkMouseOver: li => {
-    if (linkR[li] <= 0) return;
-    hoverLink = DATA.links[li];
-    hoverLink.li = li;
-    if (!hoverNode) showTooltip(linkTip(hoverLink));
-  },
-  onLinkMouseOut: () => { hoverLink = null; if (hoverNode) showTooltip(nodeTip(hoverNode)); else hideTooltip(); },
-});
-
-const positions = new Float32Array(DATA.pos);
-const linksFlat = new Float32Array(DATA.links.length * 2);
-DATA.links.forEach((l, i) => { linksFlat[i * 2] = l.s; linksFlat[i * 2 + 1] = l.t; });
-
-let selected = null, hoverNode = null, hoverLink = null, query = '';
-let mx = 0, my = 0;
+// ---- graph instance ----
+function makeGraph() {
+  graphEl = document.createElement('div');
+  graphEl.style.cssText = 'position:absolute;inset:0;touch-action:none;';
+  graphEl.setAttribute('aria-label', META.aria);
+  graphHost.appendChild(graphEl);
+  return new Graph(graphEl, {
+    backgroundColor: [0, 0, 0, 0],
+    spaceSize: 4096,
+    scalePointsOnZoom: false, // manual capped scaling below — photos must not blow up when zooming in
+    renderHoveredPointRing: true,
+    hoveredPointRingColor: css('--accent'),
+    hoveredPointCursor: 'pointer',
+    fitViewOnInit: false,
+    enableSimulation: false, // layout is precomputed at build time — nothing moves
+    linkVisibilityMinTransparency: 0.35,
+    onPointClick: i => { if (nodeR[i] > 0) openCard(nodes[i]); },
+    onBackgroundClick: () => { closeCard(); },
+    onPointMouseOver: (i, pos, ev) => {
+      if (nodeR[i] <= 0) return;
+      hoverNode = nodes[i];
+      if (ev && ev.clientX != null) { mx = ev.clientX; my = ev.clientY; }
+      showTooltip(nodeTip(hoverNode));
+    },
+    onPointMouseOut: () => { hoverNode = null; if (!hoverLink) hideTooltip(); },
+    onLinkMouseOver: li => {
+      if (linkR[li] <= 0) return;
+      hoverLink = DATA.links[li];
+      hoverLink.li = li;
+      if (!hoverNode) showTooltip(linkTip(hoverLink));
+    },
+    onLinkMouseOut: () => { hoverLink = null; if (hoverNode) showTooltip(nodeTip(hoverNode)); else hideTooltip(); },
+  });
+}
 
 function parseRGBA(str) {
   const m = str.match(/rgba?\(([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)(?:[,/ ]+([\d.]+))?\)/);
@@ -564,7 +606,6 @@ function focusSet() {
 }
 
 // screen-size response to zoom: shrink when zoomed out, grow only gently when zoomed in
-let zScale = 1;
 const zoomFactor = z => z <= 1 ? z : Math.min(1 + (Math.sqrt(z) - 1) * 0.5, 1.5);
 function currentSizes() {
   const szs = new Float32Array(N);
@@ -573,6 +614,7 @@ function currentSizes() {
 }
 
 function applyState() {
+  if (!graph) return;
   const keep = focusSet();
   const imgIdx = new Float32Array(N);
   for (let i = 0; i < N; i++) {
@@ -623,15 +665,16 @@ addEventListener('pointermove', e => {
 });
 
 function nodeTip(n) {
-  const yrs = yearsInRange(n.ys);
-  const mates = n.adj.filter(m => linkR[m.li] > 0).length;
+  const v = sumRange(n.ys);
+  const peers = n.adj.filter(m => linkR[m.li] > 0).length;
   return `<div class="tt-name">${n.name}</div>
-    <div class="tt-sub">${sumRange(n.ys)} race starts · ${rangesStr(yrs)}</div>
-    <div class="tt-sub">${mates} teammate${mates === 1 ? '' : 's'} · ${n.teams.join(', ')}</div>`;
+    <div class="tt-sub">${v} ${plural(META.nodeUnit, v)} · ${rangesStr(yearsInRange(n.ys))}</div>
+    <div class="tt-sub">${peers} ${plural(META.peerUnit, peers)} · ${n.teams.join(', ')}</div>`;
 }
 function linkTip(l) {
+  const v = sumRange(l.ys);
   return `<div class="tt-name">${nodes[l.s].name} &amp; ${nodes[l.t].name}</div>
-    <div><span class="tt-accent">${sumRange(l.ys)}</span> <span class="tt-sub">races as teammates · ${rangesStr(yearsInRange(l.ys))}</span></div>
+    <div><span class="tt-accent">${v}</span> <span class="tt-sub">${plural(META.linkUnit, v)} · ${rangesStr(yearsInRange(l.ys))}</span></div>
     <div class="tt-sub">${l.teams.join(', ')}</div>`;
 }
 
@@ -642,13 +685,14 @@ function openCard(n) {
   photo.src = PHOTOS[n.name] || '';
   photo.style.display = PHOTOS[n.name] ? '' : 'none';
   document.getElementById('card-name').textContent = n.name;
+  const v = sumRange(n.ys);
   document.getElementById('card-sub').textContent =
-    `${sumRange(n.ys)} race starts · ${rangesStr(yearsInRange(n.ys))} · ${n.teams.join(', ')}`;
-  const mates = n.adj
+    `${v} ${plural(META.nodeUnit, v)} · ${rangesStr(yearsInRange(n.ys))} · ${n.teams.join(', ')}`;
+  const peers = n.adj
     .map(m => ({ ...m, w: sumRange(m.link.ys) }))
     .filter(m => m.w > 0)
     .sort((a, b) => b.w - a.w);
-  document.getElementById('card-mates').innerHTML = mates.map(m => `
+  document.getElementById('card-mates').innerHTML = peers.map(m => `
     <li data-i="${m.other.i}">
       ${PHOTOS[m.other.name] ? `<img class="m-photo" src="${PHOTOS[m.other.name]}" alt="" />`
                              : '<span class="m-photo"></span>'}
@@ -656,7 +700,7 @@ function openCard(n) {
         <span class="m-name">${m.other.name}</span>
         <span class="m-when">${rangesStr(yearsInRange(m.link.ys))} · ${m.link.teams.join(', ')}</span>
       </span>
-      <span class="m-n">${m.w}<br /><small>race${m.w === 1 ? '' : 's'}</small></span>
+      <span class="m-n">${m.w}<br /><small>${plural(META.linkShort, m.w)}</small></span>
     </li>`).join('');
   const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const creditFor = who => {
@@ -666,7 +710,7 @@ function openCard(n) {
     return c.url ? `<a href="${c.url}" target="_blank" rel="noopener">${esc(who)}</a>: ${by}`
                  : `${esc(who)}: ${by}`;
   };
-  const credits = [creditFor(n.name), ...mates.map(m => creditFor(m.other.name))].filter(Boolean);
+  const credits = [creditFor(n.name), ...peers.map(m => creditFor(m.other.name))].filter(Boolean);
   document.getElementById('card-credit').innerHTML =
     credits.length ? 'Photos — ' + credits.join(' · ') : '';
   card.classList.add('on');
@@ -708,6 +752,11 @@ addEventListener('keydown', e => {
 // ---- labels ----
 let labelIdx = [];
 const labelPool = new Map();
+function clearLabels() {
+  for (const [, div] of labelPool) div.remove();
+  labelPool.clear();
+  labelIdx = [];
+}
 function updateLabelSet() {
   const keep = focusSet();
   let want;
@@ -739,9 +788,8 @@ function updateLabelSet() {
 }
 
 function layoutLabels() {
-  if (!graph.isReady || !labelIdx.length) return;
+  if (!graph || !graph.isReady || !labelIdx.length) return;
   const map = graph.getTrackedPointPositionsMap();
-  const z = graph.getZoomLevel ? graph.getZoomLevel() : 1;
   for (const i of labelIdx) {
     const div = labelPool.get(i);
     const p = map.get(i);
@@ -778,6 +826,7 @@ function sliderRender() {
 }
 let filterQueued = false;
 function queueFilter() {
+  rangeTouched = true;
   if (filterQueued) return;
   filterQueued = true;
   requestAnimationFrame(() => {
@@ -832,26 +881,117 @@ h1.addEventListener('keydown', e => {
 // ---- theme reactions ----
 function onThemeChange() {
   refreshColors();
-  graph.setConfigPartial({ hoveredPointRingColor: css('--accent') });
+  if (graph) graph.setConfigPartial({ hoveredPointRingColor: css('--accent') });
   applyState();
 }
 new MutationObserver(onThemeChange).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onThemeChange);
 
-// ---- boot ----
-(async () => {
+// ---- graph picker ----
+INDEX.forEach(spec => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.role = 'tab';
+  b.textContent = spec.label;
+  b.title = spec.blurb || '';
+  b.dataset.id = spec.id;
+  b.setAttribute('aria-selected', 'false');
+  b.addEventListener('click', () => { location.hash = spec.id; go(spec.id); });
+  switcherEl.appendChild(b);
+});
+if (INDEX.length < 2) switcherEl.style.display = 'none';
+
+// clicking a tab writes the hash, which fires hashchange — `requestedId`
+// keeps that round trip from loading the same graph twice
+let requestedId = null;
+function go(id) {
+  const spec = INDEX.find(e => e.id === id) || INDEX[0];
+  if (requestedId !== spec.id) loadGraph(spec);
+}
+addEventListener('hashchange', () => go(location.hash.slice(1)));
+
+// ---- load & swap a graph ----
+const dataCache = new Map();
+let loadSeq = 0;
+
+function applyMeta() {
+  document.getElementById('title').textContent = META.title;
+  document.getElementById('blurb').textContent = META.blurb || '';
+  document.title = `${META.title} · Formula 1 ${YEAR_MIN}–${YEAR_MAX}`;
+  searchEl.placeholder = META.search || 'Find a driver…';
+  document.querySelector('.card-label').textContent = META.listLabel;
+  for (const b of switcherEl.children) {
+    b.setAttribute('aria-selected', String(b.dataset.id === META.id));
+  }
+  const mid = Math.max(2, Math.round(MAXW / 2));
+  document.getElementById('leg-1').textContent = '1';
+  document.getElementById('leg-2').textContent = mid;
+  document.getElementById('leg-3').textContent = `${MAXW} ${META.legendSuffix}`;
+  document.querySelector('.leg-line.w1').style.height = lw(1).toFixed(1) + 'px';
+  document.querySelector('.leg-line.w2').style.height = lw(mid).toFixed(1) + 'px';
+  document.querySelector('.leg-line.w3').style.height = lw(MAXW).toFixed(1) + 'px';
+}
+
+async function loadGraph(spec) {
+  requestedId = spec.id;
+  const seq = ++loadSeq;
+  switcherEl.classList.add('busy');
+  let data = dataCache.get(spec.id);
+  if (!data) {
+    data = await (await fetch(`data/${spec.id}.json?v=${spec.v}`)).json();
+    dataCache.set(spec.id, data);
+  }
+  if (seq !== loadSeq) return;   // a later click won
+
+  SPEC = spec;
+  DATA = data;
+  META = data.meta;
+  N = DATA.nodes.length;
+  nodes = DATA.nodes.map((n, i) => ({ ...n, i, adj: [] }));
+  DATA.links.forEach((l, li) => {
+    l.w = tot(l.ys);
+    nodes[l.s].adj.push({ li, other: nodes[l.t], link: l });
+    nodes[l.t].adj.push({ li, other: nodes[l.s], link: l });
+  });
+  MAXW = DATA.links.length ? Math.max(...DATA.links.map(l => l.w)) : 1;
+  nodeR = new Float64Array(N);
+  linkR = new Float64Array(DATA.links.length);
+  YEAR_MAX = Math.max(...Object.keys(DATA.racesPerSeason).map(Number));
+  if (!rangeTouched) { yLo = YEAR_MIN; yHi = YEAR_MAX; }
+  yLo = Math.min(Math.max(yLo, YEAR_MIN), YEAR_MAX);
+  yHi = Math.min(Math.max(yHi, yLo), YEAR_MAX);
+
+  // reset view state that belonged to the previous graph
+  selected = null; hoverNode = null; hoverLink = null; zScale = 1;
+  query = ''; searchEl.value = '';
+  card.classList.remove('on');
+  hideTooltip();
+  clearLabels();
+  if (graph) { graph.destroy(); graphEl.remove(); graph = null; }
+
+  applyMeta();
+  recomputeFilter();
+  sliderRender();
+
+  graph = makeGraph();
   const [images] = await Promise.all([buildImages(), graph.ready]);
-  graph.setPointPositions(positions);
+  if (seq !== loadSeq) return;
+  graph.setPointPositions(new Float32Array(DATA.pos));
+  const linksFlat = new Float32Array(DATA.links.length * 2);
+  DATA.links.forEach((l, i) => { linksFlat[i * 2] = l.s; linksFlat[i * 2 + 1] = l.t; });
   graph.setLinks(linksFlat);
   graph.setImageData(images);
   graph.setPointColors(new Float32Array(N * 4)); // transparent shapes under photos
-  recomputeFilter();
-  sliderRender();
   applyState();
   graph.trackPointPositionsByIndices(nodes.map(n => n.i));
   graph.render();
   graph.fitView(0, 0.08);
-  (function loop() {
+  switcherEl.classList.remove('busy');
+}
+
+// ---- boot ----
+(function loop() {
+  if (graph && graph.isReady) {
     const z = graph.getZoomLevel ? graph.getZoomLevel() : 1;
     const f = zoomFactor(z);
     if (Math.abs(f - zScale) > 0.02) {
@@ -862,7 +1002,9 @@ if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEven
       graph.render(undefined, 0);
     }
     layoutLabels();
-    requestAnimationFrame(loop);
-  })();
+  }
+  requestAnimationFrame(loop);
 })();
+
+go(location.hash.slice(1));
 </script>
