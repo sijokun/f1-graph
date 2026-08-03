@@ -13,6 +13,19 @@ the header:
 
 By [Yan Khachko](https://slnk.icu).
 
+## Play
+
+**Play** deals you a random start and target driver and asks you to get from one
+to the other in as few hops as possible — each hop moves to someone the driver
+you're standing on is connected to (a teammate, a podium partner…), picked from
+the list in the card. The target stays labelled on the canvas.
+
+The shortest possible route is solved up front with a breadth-first search over
+the graph *as currently filtered*, so the season range is locked for the length
+of a run. When you arrive — or hit **Show answer** — your route and the shortest
+one are shown side by side with the step counts. Pairs are drawn 3–7 hops apart
+when the graph allows it.
+
 ## Layout
 
 | Path | What it is |
