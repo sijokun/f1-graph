@@ -25984,11 +25984,11 @@ season,round,race_name,date,session,team,driver,driver_number,position,points
 2026,5,Canadian Grand Prix,2026-05-24,Race,RB F1 Team,Arvid Lindblad,41,22,0
 2026,6,Monaco Grand Prix,2026-06-07,Race,Mercedes,Andrea Kimi Antonelli,12,1,25
 2026,6,Monaco Grand Prix,2026-06-07,Race,Ferrari,Lewis Hamilton,44,2,18
-2026,6,Monaco Grand Prix,2026-06-07,Race,Alpine F1 Team,Pierre Gasly,10,3,15
-2026,6,Monaco Grand Prix,2026-06-07,Race,Red Bull,Isack Hadjar,6,4,12
-2026,6,Monaco Grand Prix,2026-06-07,Race,McLaren,Oscar Piastri,81,5,10
-2026,6,Monaco Grand Prix,2026-06-07,Race,RB F1 Team,Liam Lawson,30,6,8
-2026,6,Monaco Grand Prix,2026-06-07,Race,RB F1 Team,Arvid Lindblad,41,7,6
+2026,6,Monaco Grand Prix,2026-06-07,Race,Red Bull,Isack Hadjar,6,3,15
+2026,6,Monaco Grand Prix,2026-06-07,Race,McLaren,Oscar Piastri,81,4,12
+2026,6,Monaco Grand Prix,2026-06-07,Race,RB F1 Team,Liam Lawson,30,5,10
+2026,6,Monaco Grand Prix,2026-06-07,Race,RB F1 Team,Arvid Lindblad,41,6,8
+2026,6,Monaco Grand Prix,2026-06-07,Race,Alpine F1 Team,Pierre Gasly,10,7,6
 2026,6,Monaco Grand Prix,2026-06-07,Race,Williams,Alexander Albon,23,8,4
 2026,6,Monaco Grand Prix,2026-06-07,Race,Haas F1 Team,Esteban Ocon,31,9,2
 2026,6,Monaco Grand Prix,2026-06-07,Race,Aston Martin,Fernando Alonso,14,10,1
@@ -26136,3 +26136,25 @@ season,round,race_name,date,session,team,driver,driver_number,position,points
 2026,12,Dutch Grand Prix,2026-08-23,Race,Aston Martin,Lance Stroll,18,20,0
 2026,12,Dutch Grand Prix,2026-08-23,Race,Haas F1 Team,Oliver Bearman,87,21,0
 2026,12,Dutch Grand Prix,2026-08-23,Race,Red Bull,Max Verstappen,3,22,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Mercedes,Andrea Kimi Antonelli,12,1,25
+2026,13,Italian Grand Prix,2026-09-06,Race,Mercedes,George Russell,63,2,18
+2026,13,Italian Grand Prix,2026-09-06,Race,Red Bull,Max Verstappen,3,3,15
+2026,13,Italian Grand Prix,2026-09-06,Race,McLaren,Lando Norris,1,4,12
+2026,13,Italian Grand Prix,2026-09-06,Race,McLaren,Oscar Piastri,81,5,10
+2026,13,Italian Grand Prix,2026-09-06,Race,Ferrari,Lewis Hamilton,44,6,8
+2026,13,Italian Grand Prix,2026-09-06,Race,Alpine F1 Team,Pierre Gasly,10,7,6
+2026,13,Italian Grand Prix,2026-09-06,Race,RB F1 Team,Arvid Lindblad,41,8,4
+2026,13,Italian Grand Prix,2026-09-06,Race,Alpine F1 Team,Franco Colapinto,43,9,2
+2026,13,Italian Grand Prix,2026-09-06,Race,RB F1 Team,Yuki Tsunoda,22,10,1
+2026,13,Italian Grand Prix,2026-09-06,Race,Audi,Gabriel Bortoleto,5,11,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Audi,Nico Hülkenberg,27,12,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Williams,Carlos Sainz,55,13,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Red Bull,Liam Lawson,30,14,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Haas F1 Team,Oliver Bearman,87,15,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Haas F1 Team,Esteban Ocon,31,16,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Williams,Alexander Albon,23,17,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Cadillac F1 Team,Sergio Pérez,11,18,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Cadillac F1 Team,Valtteri Bottas,77,19,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Aston Martin,Lance Stroll,18,20,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Aston Martin,Fernando Alonso,14,21,0
+2026,13,Italian Grand Prix,2026-09-06,Race,Ferrari,Charles Leclerc,16,22,0
